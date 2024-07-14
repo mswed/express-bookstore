@@ -1,5 +1,10 @@
 const express = require("express");
+const jsonschema = require('jsonschema');
 const Book = require("../models/book");
+const ExpressError = require('../expressError');
+const bookSchema = require('../schemas/bookSchema.json');
+const validateBook = require('../middleware/validation')
+
 
 const router = new express.Router();
 
@@ -28,8 +33,15 @@ router.get("/:id", async function (req, res, next) {
 
 /** POST /   bookData => {book: newBook}  */
 
-router.post("/", async function (req, res, next) {
+router.post("/", validateBook, async function (req, res, next) {
   try {
+    const schema = await jsonschema.validate(req.body, bookSchema);
+    if (!schema.valid) {
+      const errors = schema.errors.map((e) => e.stack);
+      const e = new ExpressError(errors, 400)
+      return next(e)
+    }
+
     const book = await Book.create(req.body);
     return res.status(201).json({ book });
   } catch (err) {
@@ -39,7 +51,7 @@ router.post("/", async function (req, res, next) {
 
 /** PUT /[isbn]   bookData => {book: updatedBook}  */
 
-router.put("/:isbn", async function (req, res, next) {
+router.put("/:isbn", validateBook, async function (req, res, next) {
   try {
     const book = await Book.update(req.params.isbn, req.body);
     return res.json({ book });
